@@ -4,5 +4,6 @@
 # Ignore all files in subdirectories
 **/**
 
-
+!inventories
+!inventories/**
 !.gitignore
