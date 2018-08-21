@@ -1,0 +1,66 @@
+#########################################################################
+# Title:         Cloudbox: AirDCPP Role                                 #
+# Author(s):     L3uddz, Desimaniac, astrom                             #
+# URL:           https://github.com/cloudbox/cloudbox                   #
+# Docker Image:  gangefors/airdcpp-webclient                            #
+# --                                                                    #
+#         Part of the Cloudbox project: https://cloudbox.rocks          #
+#########################################################################
+#                   GNU General Public License v3.0                     #
+#########################################################################
+---
+- name: "Setting CloudFlare DNS Record"
+  include_role:
+    name: cloudflare
+  vars:
+    subdomain: airdcpp
+
+- name: "Get {{user}} uid"
+  shell: "id -u {{user}}"
+  register: uid
+
+- name: "Get {{user}} gid"
+  shell: "id -g {{user}}"
+  register: gid
+
+- name: Stop and remove any existing container
+  docker_container:
+    name: airdcpp
+    state: absent
+
+- name: Create and start container
+  docker_container:
+    name: "airdcpp"
+    image: "gangefors/airdcpp-webclient"
+    pull: yes
+    published_ports:
+      - "127.0.0.1:5600:5600"
+      - "21248:21248/tcp"
+      - "29051:29051/tcp"
+      - "21248:21248/udp"
+      - "21249:21249/udp"
+      - "21249:21249/tcp"
+      - "5601:5601/tcp"
+      - "25175:25175/tcp"
+      - "16012:16012/tcp"
+    env:
+      PUID: "{{uid.stdout}}"
+      PGID: "{{gid.stdout}}"
+      VIRTUAL_HOST: "airdcpp.{{domain}}"
+      VIRTUAL_PORT: 5600
+      LETSENCRYPT_HOST: "airdcpp.{{domain}}"
+      LETSENCRYPT_EMAIL: "{{email}}"
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/opt/airdcpp:/.airdcpp"
+      - "/mnt/ebooks-cloud:/home/share/ebooks"
+      - "/mnt/unionfs/comics:/home/share/comics"
+      - "/mnt/local/Media/calibre_temp:/home/upload/ebooks"
+      - "/mnt/local/Media/comics_temp:/home/upload/comics"
+    networks:
+      - name: cloudbox
+        aliases:
+          - airdcpp
+    restart_policy: always
+    state: started
+

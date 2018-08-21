@@ -1,0 +1,61 @@
+#########################################################################
+# Title:         Cloudbox: Lazy Librarian Role                          #
+# Author(s):     L3uddz, Desimaniac, astrom                             #
+# URL:           https://github.com/cloudbox/cloudbox                   #
+# Docker Image:  linuxserver/lazylibrarian                              #
+# --                                                                    #
+#         Part of the Cloudbox project: https://cloudbox.rocks          #
+#########################################################################
+#                   GNU General Public License v3.0                     #
+#########################################################################
+---
+- name: "Setting CloudFlare DNS Record"
+  include_role:
+    name: cloudflare
+  vars:
+    subdomain: lazylib
+
+- name: "Get {{user}} uid"
+  shell: "id -u {{user}}"
+  register: uid
+
+- name: "Get {{user}} gid"
+  shell: "id -g {{user}}"
+  register: gid
+
+- name: Create lazy librarian directories
+  file: "path={{item}} state=directory mode=0775 owner={{user}} group={{user}}"
+  with_items:
+    - /opt/lazylib
+
+- name: Stop and remove any existing container
+  docker_container:
+    name: lazylib
+    state: absent
+
+- name: Create and start container
+  docker_container:
+    name: "lazylib"
+    image: "linuxserver/lazylibrarian"
+    pull: yes
+    published_ports:
+      - "5299:5299/tcp"
+    env:
+      UID: "{{uid.stdout}}"
+      PGID: "{{gid.stdout}}"
+      VIRTUAL_HOST: "lazylib.{{domain}}"
+      VIRTUAL_PORT: 5299
+      LETSENCRYPT_HOST: "lazylib.{{domain}}"
+      LETSENCRYPT_EMAIL: "{{email}}"
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/opt/lazylib:/config"
+      - "/mnt/ebooks-cloud:/books"
+      - "/mnt/local/Media/calibre_temp:/downloads"
+    networks:
+      - name: cloudbox
+        aliases:
+          - lazylib
+    restart_policy: always
+    state: started
+

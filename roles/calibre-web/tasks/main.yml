@@ -1,0 +1,57 @@
+---
+- name: "Setting CloudFlare DNS Record"
+  include_role:
+    name: cloudflare
+  vars:
+    subdomain: calibre
+
+- name: "Get {{ user }} UID"
+  shell: "id -u {{user}}"
+  register: uid
+
+- name: "Get {{ user }} GID"
+  shell: "id -g {{ user }}"
+  register: gid
+
+- name: Stop and remove any existing container
+  docker_container:
+    name: calibre-web
+    state: absent
+
+- name: Create calibre-web directories
+  file: "path={{item}} state=directory mode=0775 owner={{user}} group={{user}}"
+  with_items:
+    - /opt/calibre-web
+    - /opt/calibre-web/app
+    - /opt/calibre-web/config
+    - /opt/calibre-web/kindlegen
+
+- name: Create and start container
+  docker_container:
+    name: calibre-web
+    image: "technosoft2000/calibre-web"
+    pull: yes
+    published_ports:
+      - "8083:8083/tcp"
+    env:
+      PGID: "{{uid.stdout}}"
+      PUID: "{{gid.stdout}}"
+      CHANGE_CONFIG_DIR_OWNERSHIP: false
+      VIRTUAL_HOST: "calibre.{{domain}}"
+      VIRTUAL_PORT: 8083
+      LETSENCRYPT_HOST: "calibre.{{domain}}"
+      LETSENCRYPT_EMAIL: "{{email}}"
+      HTTPS_METHOD: noredirect
+      USE_CONFIG_DIR: true
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/mnt/ebooks-cloud:/books"
+      - "/opt/calibre-web/config:/calibre-web/config"
+      - "/opt/calibre-web/app:/calibre-web/app"
+      - "/opt/calibre-web/kindlegen:/calibre-web/kindlegen"
+    restart_policy: always
+    networks:
+      - name: cloudbox
+        aliases:
+          - calibre-web
+    state: started 
